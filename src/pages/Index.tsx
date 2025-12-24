@@ -19,6 +19,7 @@ type Crypto = {
   change: number;
   balance: number;
   history: number[];
+  prevPrice?: number;
 };
 
 type Wallet = {
@@ -69,12 +70,13 @@ const Index = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [cryptos, setCryptos] = useState<Crypto[]>([
-    { id: '1', name: 'Bitcoin', symbol: 'BTC', price: 45230.50, change: 2.5, balance: 0, history: [45000, 45100, 45050, 45200, 45230] },
-    { id: '2', name: 'Ethereum', symbol: 'ETH', price: 2890.75, change: -1.2, balance: 0, history: [2900, 2920, 2910, 2895, 2890] },
-    { id: '3', name: 'Tether', symbol: 'USDT', price: 1.00, change: 0.01, balance: 0, history: [1.00, 1.00, 1.00, 1.00, 1.00] },
-    { id: '4', name: 'Cardano', symbol: 'ADA', price: 0.52, change: 3.8, balance: 0, history: [0.50, 0.51, 0.505, 0.515, 0.52] },
-    { id: '5', name: 'Solana', symbol: 'SOL', price: 102.45, change: -2.1, balance: 0, history: [105, 104, 103.5, 103, 102.45] },
+    { id: '1', name: 'Bitcoin', symbol: 'BTC', price: 0, change: 0, balance: 0, history: [0, 0, 0, 0, 0] },
+    { id: '2', name: 'Ethereum', symbol: 'ETH', price: 0, change: 0, balance: 0, history: [0, 0, 0, 0, 0] },
+    { id: '3', name: 'Tether', symbol: 'USDT', price: 0, change: 0, balance: 0, history: [0, 0, 0, 0, 0] },
+    { id: '4', name: 'Cardano', symbol: 'ADA', price: 0, change: 0, balance: 0, history: [0, 0, 0, 0, 0] },
+    { id: '5', name: 'Solana', symbol: 'SOL', price: 0, change: 0, balance: 0, history: [0, 0, 0, 0, 0] },
   ]);
   const [selectedCrypto, setSelectedCrypto] = useState<Crypto>(cryptos[0]);
   const [tradeAmount, setTradeAmount] = useState('');
@@ -107,20 +109,45 @@ const Index = () => {
   const [premiumCurrency, setPremiumCurrency] = useState<keyof Wallet>('USD');
 
   useEffect(() => {
+    setTimeout(() => {
+      setCryptos([
+        { id: '1', name: 'Bitcoin', symbol: 'BTC', price: 45230.50, change: 2.5, balance: 0, history: [45000, 45100, 45050, 45200, 45230] },
+        { id: '2', name: 'Ethereum', symbol: 'ETH', price: 2890.75, change: -1.2, balance: 0, history: [2900, 2920, 2910, 2895, 2890] },
+        { id: '3', name: 'Tether', symbol: 'USDT', price: 1.00, change: 0.01, balance: 0, history: [1.00, 1.00, 1.00, 1.00, 1.00] },
+        { id: '4', name: 'Cardano', symbol: 'ADA', price: 0.52, change: 3.8, balance: 0, history: [0.50, 0.51, 0.505, 0.515, 0.52] },
+        { id: '5', name: 'Solana', symbol: 'SOL', price: 102.45, change: -2.1, balance: 0, history: [105, 104, 103.5, 103, 102.45] },
+      ]);
+      setIsLoading(false);
+    }, 1500);
+  }, []);
+
+  useEffect(() => {
+    if (isLoading) return;
+    
     const interval = setInterval(() => {
       setCryptos(prev => prev.map(crypto => {
-        const newPrice = crypto.price * (1 + (Math.random() - 0.5) * 0.02);
-        const newChange = (Math.random() - 0.5) * 5;
+        const volatility = crypto.symbol === 'USDT' ? 0.001 : 0.02;
+        const change = (Math.random() - 0.5) * volatility;
+        const newPrice = crypto.price * (1 + change);
+        const newChange = ((newPrice - crypto.history[0]) / crypto.history[0]) * 100;
+        
         return {
           ...crypto,
+          prevPrice: crypto.price,
           price: newPrice,
           change: newChange,
           history: [...crypto.history.slice(1), newPrice]
         };
       }));
-    }, 3000);
+    }, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isLoading]);
+
+  useEffect(() => {
+    if (!isLoading && cryptos.length > 0 && cryptos[0].price > 0) {
+      setSelectedCrypto(cryptos[0]);
+    }
+  }, [isLoading, cryptos]);
 
   const handleLogin = (email: string, password: string) => {
     const newUser: User = {
@@ -376,6 +403,13 @@ const Index = () => {
     toast.success(`День ${currentDay}: +$${reward}`);
   };
 
+  const getPriceFlashClass = (crypto: Crypto) => {
+    if (!crypto.prevPrice) return '';
+    if (crypto.price > crypto.prevPrice) return 'price-flash-green';
+    if (crypto.price < crypto.prevPrice) return 'price-flash-red';
+    return '';
+  };
+
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen gradient-bg flex items-center justify-center p-4">
@@ -458,7 +492,7 @@ const Index = () => {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <h1 className="text-2xl font-black text-primary neon-text-green">CryptoTrade</h1>
-            {isDemoMode && <Badge variant="secondary">DEMO</Badge>}
+            {isDemoMode && <Badge variant="secondary" className="animate-pulse-glow">DEMO</Badge>}
           </div>
           
           <div className="flex items-center gap-4">
@@ -473,14 +507,14 @@ const Index = () => {
                   <Icon name="User" size={20} />
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="animate-fade-in">
                 <DialogHeader>
                   <DialogTitle>Мои кошельки</DialogTitle>
                   <DialogDescription>Балансы в разных валютах</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
-                  {Object.entries(currentUser?.wallets || {}).map(([currency, amount]) => (
-                    <div key={currency} className="flex justify-between items-center p-3 bg-muted rounded">
+                  {Object.entries(currentUser?.wallets || {}).map(([currency, amount], idx) => (
+                    <div key={currency} className={`flex justify-between items-center p-3 bg-muted rounded fade-in-up stagger-${idx + 1}`}>
                       <span className="font-semibold">{currency}</span>
                       <span className="text-accent">{amount.toFixed(2)}</span>
                     </div>
@@ -493,15 +527,50 @@ const Index = () => {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {isLoading ? (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <Card className="p-6 border-2 border-primary/20 animate-fade-in">
+                <div className="flex items-center justify-center h-96">
+                  <div className="text-center">
+                    <Icon name="TrendingUp" size={64} className="mx-auto mb-4 text-primary animate-pulse-glow" />
+                    <p className="text-2xl font-bold text-primary loading-dots">Загрузка рынка</p>
+                    <p className="text-sm text-muted-foreground mt-2">Подключение к биржам</p>
+                  </div>
+                </div>
+              </Card>
+              <div className="grid grid-cols-3 gap-4">
+                {[1, 2, 3].map(i => (
+                  <Card key={i} className="p-4 skeleton-pulse">
+                    <div className="h-4 bg-muted rounded mb-2" />
+                    <div className="h-6 bg-muted rounded mb-2" />
+                    <div className="h-3 bg-muted rounded w-1/2" />
+                  </Card>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-6">
+              {[1, 2, 3].map(i => (
+                <Card key={i} className="p-6 skeleton-pulse">
+                  <div className="h-6 bg-muted rounded mb-4" />
+                  <div className="space-y-2">
+                    <div className="h-4 bg-muted rounded" />
+                    <div className="h-4 bg-muted rounded" />
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <Card className="p-6 border-2 border-primary/20">
+            <Card className="p-6 border-2 border-primary/20 fade-in-up stagger-1">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="text-3xl font-bold">{selectedCrypto.name}</h2>
                   <p className="text-muted-foreground">{selectedCrypto.symbol}</p>
                 </div>
-                <div className="text-right">
+                <div className={`text-right transition-all ${getPriceFlashClass(selectedCrypto)}`}>
                   <p className={`text-3xl font-bold ${selectedCrypto.change > 0 ? 'text-primary animate-price-up' : 'text-destructive animate-price-down'}`}>
                     ${selectedCrypto.price.toFixed(2)}
                   </p>
@@ -517,14 +586,18 @@ const Index = () => {
                   {selectedCrypto.history.map((price, idx) => {
                     const maxPrice = Math.max(...selectedCrypto.history);
                     const minPrice = Math.min(...selectedCrypto.history);
-                    const height = ((price - minPrice) / (maxPrice - minPrice)) * 100;
+                    const height = maxPrice !== minPrice ? ((price - minPrice) / (maxPrice - minPrice)) * 100 : 50;
                     return (
                       <div key={idx} className="flex-1 flex flex-col justify-end">
                         <div 
-                          className={`w-full rounded-t transition-all duration-300 ${
+                          className={`w-full rounded-t transition-all duration-500 ease-out ${
                             idx === selectedCrypto.history.length - 1 
-                              ? 'bg-primary neon-glow-green' 
-                              : 'bg-primary/50'
+                              ? selectedCrypto.change > 0 
+                                ? 'bg-primary neon-glow-green' 
+                                : 'bg-destructive neon-glow-red'
+                              : selectedCrypto.change > 0
+                                ? 'bg-primary/50'
+                                : 'bg-destructive/50'
                           }`}
                           style={{ height: `${height}%` }}
                         />
@@ -578,26 +651,32 @@ const Index = () => {
               </div>
             </Card>
 
-            <div className="grid grid-cols-3 gap-4">
-              {cryptos.map(crypto => (
+            <div className="grid grid-cols-3 gap-4 fade-in-up stagger-2">
+              {cryptos.map((crypto, idx) => (
                 <Card 
                   key={crypto.id}
-                  className={`p-4 cursor-pointer transition-all hover:scale-105 ${selectedCrypto.id === crypto.id ? 'border-2 border-primary neon-glow-blue' : 'border border-border'}`}
+                  className={`p-4 cursor-pointer crypto-card-hover ${getPriceFlashClass(crypto)} ${
+                    selectedCrypto.id === crypto.id 
+                      ? 'border-2 border-primary neon-glow-blue' 
+                      : 'border border-border'
+                  }`}
                   onClick={() => setSelectedCrypto(crypto)}
+                  style={{ animationDelay: `${idx * 0.1}s` }}
                 >
                   <p className="font-semibold">{crypto.symbol}</p>
-                  <p className="text-sm text-muted-foreground">${crypto.price.toFixed(2)}</p>
-                  <p className={`text-xs ${crypto.change > 0 ? 'text-primary' : 'text-destructive'}`}>
+                  <p className={`text-sm font-bold ${crypto.change > 0 ? 'text-primary' : crypto.change < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>${crypto.price.toFixed(2)}</p>
+                  <p className={`text-xs flex items-center gap-1 ${crypto.change > 0 ? 'text-primary' : 'text-destructive'}`}>
+                    <Icon name={crypto.change > 0 ? 'TrendingUp' : 'TrendingDown'} size={12} />
                     {crypto.change > 0 ? '+' : ''}{crypto.change.toFixed(2)}%
                   </p>
                   {crypto.balance > 0 && (
-                    <p className="text-xs text-accent mt-1">В кошельке: {crypto.balance.toFixed(4)}</p>
+                    <p className="text-xs text-accent mt-1">💰 {crypto.balance.toFixed(4)}</p>
                   )}
                 </Card>
               ))}
             </div>
 
-            <Tabs defaultValue="deposit" className="w-full">
+            <Tabs defaultValue="deposit" className="w-full fade-in-up stagger-3">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="deposit">Пополнение</TabsTrigger>
                 <TabsTrigger value="transfer">Перевод</TabsTrigger>
@@ -746,7 +825,7 @@ const Index = () => {
           </div>
 
           <div className="space-y-6">
-            <Card className="p-6 border-2 border-accent/20">
+            <Card className="p-6 border-2 border-accent/20 fade-in-up stagger-1">
               <h3 className="text-xl font-bold mb-4 flex items-center">
                 <Icon name="User" className="mr-2" size={20} />
                 Аккаунт
@@ -768,7 +847,7 @@ const Index = () => {
             </Card>
 
             {!currentUser?.isPremium && (
-              <Card className="p-6 border-2 border-accent/20 bg-gradient-to-br from-accent/10 to-transparent">
+              <Card className="p-6 border-2 border-accent/20 bg-gradient-to-br from-accent/10 to-transparent fade-in-up stagger-2">
                 <h3 className="text-xl font-bold mb-2 flex items-center text-accent">
                   ⭐ Premium
                 </h3>
@@ -796,7 +875,7 @@ const Index = () => {
               </Card>
             )}
 
-            <Card className="p-6 border-2 border-primary/20">
+            <Card className="p-6 border-2 border-primary/20 fade-in-up stagger-3">
               <h3 className="text-xl font-bold mb-4 flex items-center">
                 <Icon name="Gift" className="mr-2" size={20} />
                 Промокоды
@@ -888,7 +967,7 @@ const Index = () => {
               </Tabs>
             </Card>
 
-            <Card className="p-6 border-2 border-destructive/20">
+            <Card className="p-6 border-2 border-destructive/20 fade-in-up stagger-4">
               <h3 className="text-xl font-bold mb-4 flex items-center">
                 <Icon name="Receipt" className="mr-2" size={20} />
                 Налоги
@@ -931,7 +1010,7 @@ const Index = () => {
               </div>
             </Card>
 
-            <Card className="p-6 border-2 border-secondary/20">
+            <Card className="p-6 border-2 border-secondary/20 fade-in-up stagger-5">
               <h3 className="text-xl font-bold mb-4 flex items-center">
                 <Icon name="Calendar" className="mr-2" size={20} />
                 Адвент-календарь
@@ -944,7 +1023,7 @@ const Index = () => {
                       setCurrentDay(day);
                       handleClaimCalendar();
                     }}
-                    className={`aspect-square rounded text-sm font-semibold transition-all ${
+                    className={`aspect-square rounded text-sm font-semibold transition-all hover:scale-110 ${
                       calendarDays.includes(day) 
                         ? 'bg-primary text-black neon-glow-green' 
                         : 'bg-muted hover:bg-muted/70'
@@ -960,6 +1039,7 @@ const Index = () => {
             </Card>
           </div>
         </div>
+        )}
       </main>
     </div>
   );
